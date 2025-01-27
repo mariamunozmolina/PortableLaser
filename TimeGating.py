@@ -44,7 +44,7 @@ class MyApp(QMainWindow):
         self.k2, self.kk2 = 124, 135  # para vidrio
 
         # Configuración de la ventana principal
-        self.setGeometry(100, 100, 1200, 800)
+        self.setGeometry(100, 100, 1600, 800)
         self.setWindowTitle("Interfaz Gráfica - Procesamiento de Datos")
 
         # Widget central y layout principal
@@ -71,31 +71,21 @@ class MyApp(QMainWindow):
         # Elementos del panel derecho
         self.init_plots()
 
+        self.is_reference_loaded = False
+        self.is_measure_loaded = False
+        self.is_simulation_loaded = False
+
 
     def initUI(self):
         """Inicializar los controles en el panel izquierdo."""
-        
         # Carga de archivos
-        self.add_file_input('Archivo 1 (.s1p, .s2p)', self.load_file1_from_text, self.load_file1)
-        self.add_file_input('Archivo 2 (.s1p, .s2p)', self.load_file2_from_text, self.load_file2)
-        self.add_file_input('Archivo Excel (.xlsx)', self.load_file3_from_text, self.load_file3)
+        self.add_file_input("Abrir referencia",self.load_file1)
+        self.add_file_input( "Abrir medida",self.load_file2)
+        self.add_file_input("Abrir simulación",self.load_file3)
         
         # Etiqueta principal
         self.label = QLabel("Presiona un botón para mostrar una gráfica", self)
         self.controls_layout.addWidget(self.label)
-
-        # Botones de procesamiento
-        self.button1 = QPushButton("Mostrar Gráfica Original", self)
-        self.button1.clicked.connect(self.run_processing_original)
-        self.controls_layout.addWidget(self.button1)
-
-        self.button2 = QPushButton("Mostrar Gráfica en el Tiempo", self)
-        self.button2.clicked.connect(self.run_processing_tiempo)
-        self.controls_layout.addWidget(self.button2)
-
-        self.button3 = QPushButton("Mostrar Atenuación", self)
-        self.button3.clicked.connect(self.run_processing_atenuacion)
-        self.controls_layout.addWidget(self.button3)
 
         # Selector de ventana
         self.window_selector = QComboBox(self)
@@ -110,128 +100,165 @@ class MyApp(QMainWindow):
         self.controls_layout.addWidget(self.beta_input)
 
         # Sliders para k1, kk1, k2 y kk2
-        self.k1_slider, self.k1_input = self.add_slider("k1", 0, 200, self.update_k1)
-        self.kk1_slider, self.kk1_input = self.add_slider("kk1", 0, 200, self.update_kk1)
-        self.k2_slider, self.k2_input = self.add_slider("k2", 0, 200, self.update_k2)
-        self.kk2_slider, self.kk2_input = self.add_slider("kk2", 0, 200, self.update_kk2)
+        self.k1_slider, self.k1_input = self.add_slider("Aire 1", 0, 200, self.update_k1)
+        self.kk1_slider, self.kk1_input = self.add_slider("Aire 2", 0, 200, self.update_kk1)
+        self.k2_slider, self.k2_input = self.add_slider("Vidrio 1", 0, 200, self.update_k2)
+        self.kk2_slider, self.kk2_input = self.add_slider("Vidrio 2", 0, 200, self.update_kk2)
 
+        # Botón actualizar gráfica
+        self.button3 = QPushButton("Actualizar", self)
+        self.button3.clicked.connect(self.run_processing_atenuacion)
+        self.controls_layout.addWidget(self.button3)
+
+        # Botón para guardar los datos
+        self.save_button = QPushButton("Guardar", self)
+        self.save_button.clicked.connect(self.save_to_excel)
+        self.controls_layout.addWidget(self.save_button)
+
+        
 
     def init_plots(self):
         """Inicializar las áreas de gráficos en el panel derecho."""
         # Gráfico 1
         self.figure1, self.ax1 = plt.subplots()
         self.canvas1 = FigureCanvas(self.figure1)
+        self.canvas1.setFixedHeight(250)  # Fijar altura
         self.right_panel.addWidget(self.canvas1)
 
         # Gráfico 2
         self.figure2, self.ax2 = plt.subplots()
         self.canvas2 = FigureCanvas(self.figure2)
+        self.canvas2.setFixedHeight(250)  # Fijar altura
         self.right_panel.addWidget(self.canvas2)
 
         # Gráfico 3
         self.figure3, self.ax3 = plt.subplots()
         self.canvas3 = FigureCanvas(self.figure3)
+        self.canvas3.setFixedHeight(250)  # Fijar altura
         self.right_panel.addWidget(self.canvas3)
 
 
+
+
     # Carga de archivos
-    def add_file_input(self, label_text, load_from_text_callback, load_file_callback):
-        """Agrega casillas de texto y botones para cargar archivos."""
-        label = QLabel(label_text, self)
-        self.controls_layout.addWidget(label)
-
-        # Campo de texto para ingresar la ruta del archivo
-        file_input = QLineEdit(self)
-        self.controls_layout.addWidget(file_input)
-
-        # Botón para cargar la ruta desde el campo de texto
-        btn_load_from_text = QPushButton("Cargar desde texto", self)
-        btn_load_from_text.clicked.connect(lambda: load_from_text_callback(file_input.text()))
-        self.controls_layout.addWidget(btn_load_from_text)
-
+    def add_file_input(self,button_text, load_file_callback):
         # Botón para abrir un diálogo de archivo
-        btn_load_file = QPushButton("Abrir archivo", self)
+        btn_load_file = QPushButton(button_text, self)
         btn_load_file.clicked.connect(load_file_callback)
         self.controls_layout.addWidget(btn_load_file)
 
-
-    def load_file1_from_text(self, filename):
-        """Carga el archivo 1 (.s1p) desde el nombre introducido."""
-        from pathlib import Path
-        try:
-            self.data1 = rf.Network(filename)      
-            if Path(filename).suffix==".s1p":
-                self.S21_aire = self.data1.s[:, 0, 0]
-            else:
-                self.S21_aire = self.data1.s[:, 1, 0]
-            self.freq = self.data1.f
-            self.label.setText(f'Archivo 1 cargado: {filename}')
-        except Exception as e:
-            self.label.setText(f'Error al cargar Archivo 1: {e}')
-
-    def load_file2_from_text(self, filename):
-        """Carga el archivo 2 (.s1p) desde el nombre introducido."""
-        from pathlib import Path
-        try:
-            self.data2 = rf.Network(filename)
-            if Path(filename).suffix==".s1p":
-                self.S21_vidrio = self.data2.s[:, 0, 0]
-            else:
-                self.S21_vidrio = self.data2.s[:, 1, 0]
-
-            self.label.setText(f'Archivo 2 cargado: {filename}')
-        except Exception as e:
-            self.label.setText(f'Error al cargar Archivo 2: {e}')
-
-    def load_file3_from_text(self, filename):
-        """Carga el archivo Excel desde el nombre introducido."""
-        try:
-            self.sim = pd.read_excel(filename, sheet_name=0).values
-            self.freqHz = self.sim[:, 0] * 1e9
-            self.simat = self.sim[:, 1]
-            self.label.setText(f'Archivo Excel cargado: {filename}')
-        except Exception as e:
-            self.label.setText(f'Error al cargar Archivo Excel: {e}')
-
     def load_file1(self):
         """Carga el archivo 1 (.s1p) usando un diálogo de selección."""
-        filepath, _ = QFileDialog.getOpenFileName(self, "Cargar Archivo 1", "", "Ficheros Touchstone (*.s1p *.s2p)")
+        from pathlib import Path
+        filepath, _ = QFileDialog.getOpenFileName(self, "Cargar referencia", "", "Ficheros Touchstone (*.s1p *.s2p)")
         if filepath:
-            self.load_file1_from_text(filepath)
+            try:
+                self.data1 = rf.Network(filepath)
+                if Path(filepath).suffix == ".s1p":
+                    self.S21_aire = self.data1.s[:, 0, 0]
+                else:
+                    self.S21_aire = self.data1.s[:, 1, 0]
+                self.freq = self.data1.f
+                self.label.setText(f'Medida aire cargada')  #Pra saber la ruta añadir: {filepath}
+            except Exception as e:
+                self.label.setText(f'Error al cargar la medida del aire: {e}')
 
     def load_file2(self):
         """Carga el archivo 2 (.s1p) usando un diálogo de selección."""
-        filepath, _ = QFileDialog.getOpenFileName(self, "Cargar Archivo 2", "", "Ficheros Touchstone (*.s1p *.s2p)")
+        from pathlib import Path
+        filepath, _ = QFileDialog.getOpenFileName(self, "Cargar medida", "", "Ficheros Touchstone (*.s1p *.s2p)")
         if filepath:
-            self.load_file2_from_text(filepath)
+            try:
+                self.data2 = rf.Network(filepath)
+                if Path(filepath).suffix == ".s1p":
+                    self.S21_vidrio = self.data2.s[:, 0, 0]
+                else:
+                    self.S21_vidrio = self.data2.s[:, 1, 0]
+                self.label.setText(f'Medida referencia cargada') # {filepath}
+                self.run_processing_original() 
+                self.run_processing_tiempo()
+                self.run_processing_atenuacion()
+            except Exception as e:
+                self.label.setText(f'Error al cargar la medida de referencia: {e}')
 
     def load_file3(self):
         """Carga el archivo Excel usando un diálogo de selección."""
-        filepath, _ = QFileDialog.getOpenFileName(self, "Cargar Archivo Excel", "", "Excel files (*.xlsx)")
+        filepath, _ = QFileDialog.getOpenFileName(self, "Cargar simulación", "", "Excel files (*.xlsx)")
         if filepath:
-            self.load_file3_from_text(filepath)
+            try:
+                self.sim = pd.read_excel(filepath, sheet_name=0).values
+                self.freqHz = self.sim[:, 0] * 1e9
+                self.simat = self.sim[:, 1]
+                self.label.setText(f'Simulación cargada')# {filepath}
+                self.run_processing_original() 
+                self.run_processing_atenuacion()
+            except Exception as e:
+                self.label.setText(f'Error al cargar la simulación: {e}')
+
+
 
 
     #"""Crea un slider con una casilla de entrada al lado."""
     def add_slider(self, label, min_val, max_val, update_func):
-        """Agregar un slider con su respectiva etiqueta."""
+        """Agregar un slider con su respectiva etiqueta y sincronizarlo con la casilla de texto."""
+        # Crear la etiqueta del slider
         slider_label = QLabel(label, self)
+        slider_label.setFixedHeight(20)  # Fijar altura de la etiqueta
         self.controls_layout.addWidget(slider_label)
 
+        # Crear el slider
         slider = QSlider(Qt.Horizontal, self)
         slider.setMinimum(min_val)
         slider.setMaximum(max_val)
-        slider.setValue((max_val - min_val) // 2)
-        slider.valueChanged.connect(update_func)
+        if label == "Aire 1":
+            slider.setValue(self.k1)
+        elif label == "Aire 2":
+            slider.setValue(self.kk1)
+        elif label == "Vidrio 1":
+            slider.setValue(self.k2)
+        elif label == "Vidrio 2":
+            slider.setValue(self.kk2)
+        slider.setFixedHeight(20)  # Fijar altura del slider
         self.controls_layout.addWidget(slider)
 
+        # Crear la casilla de texto
         slider_input = QLineEdit(self)
         slider_input.setValidator(QIntValidator(min_val, max_val))
-        slider_input.setText(str(slider.value()))
-        slider_input.textChanged.connect(lambda val: self.sync_slider_input(slider, val))
+        if label == "Aire 1":
+            slider_input.setText(str(self.k1))
+        elif label == "Aire 2":
+            slider_input.setText(str(self.kk1))
+        elif label == "Vidrio 1":
+            slider_input.setText(str(self.k2))
+        elif label == "Vidrio 2":
+            slider_input.setText(str(self.kk2))
+        slider_input.setFixedHeight(20)  # Fijar altura del campo de texto
         self.controls_layout.addWidget(slider_input)
 
+
+        # Sincronizar slider con la entrada de texto
+        slider.valueChanged.connect(lambda value: self.sync_input_with_slider(slider_input, value))
+        slider_input.textChanged.connect(lambda text: self.sync_slider_with_input(slider, text))
+
+        # Conexión del slider con la función de actualización
+        slider.valueChanged.connect(update_func)
+
         return slider, slider_input
+
+    def sync_input_with_slider(self, input_box, value):
+        """Actualiza la casilla de texto cuando el slider cambia."""
+        input_box.setText(str(value))
+
+    def sync_slider_with_input(self, slider, text):
+        """Actualiza el slider cuando el valor de la casilla de texto cambia."""
+        try:
+            value = int(text)
+            if slider.minimum() <= value <= slider.maximum():
+                slider.setValue(value)
+        except ValueError:
+            pass  # Ignorar entradas no válidas
+
+
 
     def update_slider_from_input(self, slider, input_box):
         """Actualiza el valor del slider desde el valor escrito en la casilla de entrada."""
@@ -245,22 +272,18 @@ class MyApp(QMainWindow):
     def update_k1(self, value):
         self.k1 = value
         self.run_processing_tiempo()  # Actualiza la gráfica
-        print(f"k1 actualizado a {value}")
 
     def update_kk1(self, value):
         self.kk1 = value
         self.run_processing_tiempo()  # Actualiza la gráfica
-        print(f"kk1 actualizado a {value}")
 
     def update_k2(self, value):
         self.k2 = value
         self.run_processing_tiempo()  # Actualiza la gráfica
-        print(f"k2 actualizado a {value}")
 
     def update_kk2(self, value):
         self.kk2 = value
         self.run_processing_tiempo()  # Actualiza la gráfica
-        print(f"kk2 actualizado a {value}")
 
     # Cambiar tipo de ventana
     def set_window_type(self, text):
@@ -274,6 +297,34 @@ class MyApp(QMainWindow):
         except ValueError:
             # Si el valor ingresado no es un número, usa el valor predeterminado
             self.kaiser_beta = 3
+
+
+    def save_to_excel(self):
+        """Guardar las frecuencias y las medidas en un archivo Excel."""
+        if self.freq is None or self.atoriginal is None or self.simat is None or self.at is None:
+            self.label.setText("Error: Falta cargar datos o realizar cálculos.")
+            return
+
+        # Crear un DataFrame con los datos
+        try:
+            data = {
+                "Frecuencia (Hz)": self.freq,
+                "Original ": np.abs(self.atoriginal),
+                "Teórica ": np.abs(self.simat),
+                #"Frecuencia procesada (Hz)": self.freq[1:-1],
+                "Procesada ": np.abs(self.at)
+            }
+            df = pd.DataFrame(data)
+
+            # Guardar el archivo Excel
+            filepath, _ = QFileDialog.getSaveFileName(self, "Guardar datos", "", "Excel files (*.xlsx)")
+            if filepath:
+                df.to_excel(filepath, index=False)
+                self.label.setText("Datos guardados exitosamente.")
+        except Exception as e:
+            self.label.setText(f"Error al guardar los datos: {e}")
+
+
 
     # Procesos creados
     def run_processing_original(self):
@@ -304,7 +355,9 @@ class MyApp(QMainWindow):
         # Gráfica
         self.ax1.clear()
         self.ax1.plot(self.freq, self.atoriginal, label='Original')
-        self.ax1.plot(self.freqHz, self.simat, label='Teórica')
+        # Solo graficar datos simulados si están disponibles
+        if self.simat is not None and self.freqHz is not None:
+            self.ax1.plot(self.freqHz, self.simat, label='Teórica')
         self.ax1.legend()
         self.ax1.set_title("Gráfica Original")
         self.ax1.set_xlabel("Frecuencia (Hz)")
@@ -403,13 +456,14 @@ class MyApp(QMainWindow):
         S21_aire_den2 = S21_aire_den / Hs5
 
         # Atenuación
-        at = 20 * np.log10(np.abs(S21_aire_den2)) - 20 * np.log10(np.abs(S21_vidrio_den2))
+        self.at = 20 * np.log10(np.abs(S21_aire_den2)) - 20 * np.log10(np.abs(S21_vidrio_den2))
 
         # Gráfica
         self.ax3.clear()
         self.ax3.plot(self.freq, self.atoriginal, label='Original')
-        self.ax3.plot(self.freqHz, self.simat, label='Teórica')
-        self.ax3.plot(self.freq[1:-1], at[1:-1], label='Procesada')
+        if self.simat is not None and self.freqHz is not None:
+            self.ax3.plot(self.freqHz, self.simat, label='Teórica')
+        self.ax3.plot(self.freq[1:-1], self.at[1:-1], label='Procesada')
         self.ax3.legend()
         self.ax3.axis([6e8, 6e9, 0, 60])
         self.ax3.set_title("Comparación de Atenuación")
